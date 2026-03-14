@@ -81,12 +81,11 @@ def print_result(task_name, path, total_dist, total_energy):
     print()
 
 
-# ---------------- Task 1 ----------------
-# Relaxed shortest path: no energy constraint
+# ---------------- Part 1 Task 1 ----------------
 def dijkstra_distance(G, Dist, start, goal):
     dist_to = {start: 0.0}
     parent = {}
-    pq = [(0.0, start)]  # (distance, node)
+    pq = [(0.0, start)]
 
     while pq:
         d, u = heapq.heappop(pq)
@@ -112,8 +111,7 @@ def dijkstra_distance(G, Dist, start, goal):
     return [], float("inf")
 
 
-# ---------------- Shared helper for Tasks 2 and 3 ----------------
-# Keeps non-dominated labels at each node
+# ---------------- Shared helper for Part 1 Tasks 2 and 3 ----------------
 def is_dominated(active_labels, labels, node, new_dist, new_energy):
     to_remove = []
 
@@ -122,19 +120,16 @@ def is_dominated(active_labels, labels, node, new_dist, new_energy):
         old_dist = old_label["dist"]
         old_energy = old_label["energy"]
 
-        # Old label dominates new label
         if old_dist <= new_dist and old_energy <= new_energy:
             return True, []
 
-        # New label dominates old label
         if new_dist <= old_dist and new_energy <= old_energy:
             to_remove.append(old_id)
 
     return False, to_remove
 
 
-# ---------------- Task 2 ----------------
-# Uninformed search with energy constraint: UCS
+# ---------------- Part 1 Task 2 ----------------
 def constrained_ucs(G, Dist, Cost, start, goal, budget):
     labels = {
         0: {
@@ -197,8 +192,7 @@ def constrained_ucs(G, Dist, Cost, start, goal, budget):
     return [], float("inf"), float("inf")
 
 
-# ---------------- Task 3 ----------------
-# A* with Euclidean heuristic and energy constraint
+# ---------------- Part 1 Task 3 ----------------
 def astar_with_energy_budget(G, Dist, Cost, Coord, start, goal, budget):
     def heuristic(node):
         x1, y1 = Coord[node]
@@ -279,8 +273,7 @@ ARROWS = {"U": "↑", "R": "→", "D": "↓", "L": "←"}
 GRID_SIZE = 5
 START = (0, 0)
 GOAL = (4, 4)
-ROADBLOCKS = {(2, 1), (2, 3)}
-
+ROADBLOCKS = {(2, 1), (2, 3)}   # follow written specification
 GAMMA = 0.9
 THETA = 1e-10
 EPSILON = 0.1
@@ -326,25 +319,25 @@ def move(state, action):
     return nxt
 
 
-def perpendicular_actions(action):
-    if action in ("U", "D"):
-        return ["L", "R"]
-    return ["U", "D"]
-
-
 def get_transitions(state, action):
+    """
+    Known stochastic model for Task 1.
+    """
     if state == GOAL:
         return [(1.0, GOAL, 0.0)]
 
+    if action == "U":
+        candidates = [("U", 0.8), ("L", 0.1), ("R", 0.1)]
+    elif action == "D":
+        candidates = [("D", 0.8), ("L", 0.1), ("R", 0.1)]
+    elif action == "L":
+        candidates = [("L", 0.8), ("U", 0.1), ("D", 0.1)]
+    else:  # "R"
+        candidates = [("R", 0.8), ("U", 0.1), ("D", 0.1)]
+
     outcomes = {}
 
-    candidates = [
-        (0.8, action),
-        (0.1, perpendicular_actions(action)[0]),
-        (0.1, perpendicular_actions(action)[1]),
-    ]
-
-    for prob, actual_action in candidates:
+    for actual_action, prob in candidates:
         next_state = move(state, actual_action)
         reward = 10.0 if next_state == GOAL else -1.0
         key = (next_state, reward)
@@ -353,20 +346,39 @@ def get_transitions(state, action):
     return [(p, s2, r) for (s2, r), p in outcomes.items()]
 
 
+def stochastic_transition(state, action, rng):
+    """
+    Prof hint style:
+    Environment is stochastic, but this is hidden from the agent in Tasks 2 and 3.
+    """
+    if action == "U":
+        transitions = [("U", 0.8), ("L", 0.1), ("R", 0.1)]
+    elif action == "D":
+        transitions = [("D", 0.8), ("L", 0.1), ("R", 0.1)]
+    elif action == "L":
+        transitions = [("L", 0.8), ("U", 0.1), ("D", 0.1)]
+    else:  # "R"
+        transitions = [("R", 0.8), ("U", 0.1), ("D", 0.1)]
+
+    r = rng.random()
+    cum_prob = 0.0
+
+    for actual_action, prob in transitions:
+        cum_prob += prob
+        if r <= cum_prob:
+            return move(state, actual_action)
+
+    return state
+
+
 def env_step(state, action, rng):
+    """
+    Sample one stochastic transition for Tasks 2 and 3.
+    """
     if state == GOAL:
         return GOAL, 0.0, True
 
-    r = rng.random()
-
-    if r < 0.8:
-        actual_action = action
-    elif r < 0.9:
-        actual_action = perpendicular_actions(action)[0]
-    else:
-        actual_action = perpendicular_actions(action)[1]
-
-    next_state = move(state, actual_action)
+    next_state = stochastic_transition(state, action, rng)
     reward = 10.0 if next_state == GOAL else -1.0
     done = (next_state == GOAL)
 
@@ -427,8 +439,17 @@ def print_policy_table(policy, title):
     print()
 
 
-# ---------------- Part 2 Task 1 ----------------
+def compare_policies(policy_a, policy_b):
+    diffs = []
+    for s in get_states():
+        if s == GOAL:
+            continue
+        if policy_a[s] != policy_b[s]:
+            diffs.append(s)
+    return diffs
 
+
+# ---------------- Part 2 Task 1 ----------------
 def value_iteration():
     states = get_states()
     V = {s: 0.0 for s in states}
@@ -511,16 +532,6 @@ def policy_iteration():
     return V, policy, outer_iterations
 
 
-def compare_policies(policy_a, policy_b):
-    diffs = []
-    for s in get_states():
-        if s == GOAL:
-            continue
-        if policy_a[s] != policy_b[s]:
-            diffs.append(s)
-    return diffs
-
-
 def run_part2_task1():
     V_vi, policy_vi, vi_iters = value_iteration()
     V_pi, policy_pi, pi_iters = policy_iteration()
@@ -545,7 +556,6 @@ def run_part2_task1():
 
 
 # ---------------- Part 2 Task 2 ----------------
-
 def monte_carlo_control(num_episodes=50000, seed=42):
     rng = random.Random(seed)
     states = get_states()
@@ -569,15 +579,20 @@ def monte_carlo_control(num_episodes=50000, seed=42):
 
         episode_lengths.append(len(episode))
 
+        # compute returns G_t for each time step
+        returns = [0.0] * len(episode)
         G_return = 0.0
-        visited = set()
-
-        for state, action, reward in reversed(episode):
+        for t in range(len(episode) - 1, -1, -1):
+            _, _, reward = episode[t]
             G_return = reward + GAMMA * G_return
+            returns[t] = G_return
 
+        # true first-visit MC: update only first occurrence in forward order
+        visited = set()
+        for t, (state, action, _) in enumerate(episode):
             if (state, action) not in visited:
                 visited.add((state, action))
-                returns_sum[(state, action)] += G_return
+                returns_sum[(state, action)] += returns[t]
                 returns_count[(state, action)] += 1
                 Q[(state, action)] = returns_sum[(state, action)] / returns_count[(state, action)]
 
@@ -622,7 +637,6 @@ def run_part2_task2(optimal_policy):
 
 
 # ---------------- Part 2 Task 3 ----------------
-
 def q_learning(num_episodes=50000, alpha=ALPHA, epsilon=EPSILON, seed=42, max_steps=200):
     rng = random.Random(seed)
     states = get_states()
@@ -725,13 +739,13 @@ def main():
 
     path1, dist1 = dijkstra_distance(G, Dist, start, goal)
     energy1 = path_sum(path1, Cost) if path1 else float("inf")
-    print_result("Task 1", path1, dist1, energy1)
+    print_result("Part 1 - Task 1", path1, dist1, energy1)
 
     path2, dist2, energy2 = constrained_ucs(G, Dist, Cost, start, goal, budget)
-    print_result("Task 2", path2, dist2, energy2)
+    print_result("Part 1 - Task 2", path2, dist2, energy2)
 
     path3, dist3, energy3 = astar_with_energy_budget(G, Dist, Cost, Coord, start, goal, budget)
-    print_result("Task 3", path3, dist3, energy3)
+    print_result("Part 1 - Task 3", path3, dist3, energy3)
 
     print("=" * 60)
 
