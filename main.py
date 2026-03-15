@@ -4,9 +4,8 @@ import math
 import random
 
 
-# =========================================================
+
 # Part 1: Graph Search
-# =========================================================
 
 def load_graph():
     with open("G.json", "r") as f:
@@ -81,7 +80,8 @@ def print_result(task_name, path, total_dist, total_energy):
     print()
 
 
-# ---------------- Part 1 Task 1 ----------------
+# Part 1 Task 1
+# Task 1 ignores the energy budget, so this is just standard shortest path by distance
 def dijkstra_distance(G, Dist, start, goal):
     dist_to = {start: 0.0}
     parent = {}
@@ -90,6 +90,7 @@ def dijkstra_distance(G, Dist, start, goal):
     while pq:
         d, u = heapq.heappop(pq)
 
+        # Skip outdated queue entries that are worse than the best known distance
         if d > dist_to.get(u, float("inf")):
             continue
 
@@ -111,7 +112,9 @@ def dijkstra_distance(G, Dist, start, goal):
     return [], float("inf")
 
 
-# ---------------- Shared helper for Part 1 Tasks 2 and 3 ----------------
+# Shared helper for Part 1 Tasks 2 and 3 
+# For Tasks 2 and 3, reaching the same node with different energy usage matters,
+# so we keep non-dominated labels instead of a simple visited set
 def is_dominated(active_labels, labels, node, new_dist, new_energy):
     to_remove = []
 
@@ -129,7 +132,7 @@ def is_dominated(active_labels, labels, node, new_dist, new_energy):
     return False, to_remove
 
 
-# ---------------- Part 1 Task 2 ----------------
+# Part 1 Task 2 
 def constrained_ucs(G, Dist, Cost, start, goal, budget):
     labels = {
         0: {
@@ -165,6 +168,7 @@ def constrained_ucs(G, Dist, Cost, start, goal, budget):
             new_dist = cur_dist + edge_dist
             new_energy = cur_energy + edge_cost
 
+            # If this new path already uses too much energy, discard it immediately
             if new_energy > budget:
                 continue
 
@@ -192,9 +196,12 @@ def constrained_ucs(G, Dist, Cost, start, goal, budget):
     return [], float("inf"), float("inf")
 
 
-# ---------------- Part 1 Task 3 ----------------
+# Part 1 Task 3 
+# A* still respects the energy budget, but uses a heuristic to guide the search
 def astar_with_energy_budget(G, Dist, Cost, Coord, start, goal, budget):
     def heuristic(node):
+
+        # Use straight-line distance to the goal as the A* heuristic
         x1, y1 = Coord[node]
         x2, y2 = Coord[goal]
         return math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2)
@@ -263,9 +270,8 @@ def astar_with_energy_budget(G, Dist, Cost, Coord, start, goal, budget):
     return [], float("inf"), float("inf")
 
 
-# =========================================================
+
 # Part 2: Grid World MDP / RL
-# =========================================================
 
 ACTIONS = ["U", "R", "D", "L"]
 ARROWS = {"U": "↑", "R": "→", "D": "↓", "L": "←"}
@@ -273,7 +279,7 @@ ARROWS = {"U": "↑", "R": "→", "D": "↓", "L": "←"}
 GRID_SIZE = 5
 START = (0, 0)
 GOAL = (4, 4)
-ROADBLOCKS = {(2, 1), (2, 3)}   # follow written specification
+ROADBLOCKS = {(2, 1), (2, 3)}   # follow written specification even though the figure seems to look different
 GAMMA = 0.9
 THETA = 1e-10
 EPSILON = 0.1
@@ -297,7 +303,7 @@ def in_bounds(state):
         and state not in ROADBLOCKS
     )
 
-
+# If the move goes out of bounds or into a roadblock, stay in the same state
 def move(state, action):
     if state == GOAL:
         return GOAL
@@ -318,7 +324,7 @@ def move(state, action):
 
     return nxt
 
-
+# Task 1: the agent knows the transition probabilities, so expected returns can be computed directly
 def get_transitions(state, action):
     """
     Known stochastic model for Task 1.
@@ -345,10 +351,9 @@ def get_transitions(state, action):
 
     return [(p, s2, r) for (s2, r), p in outcomes.items()]
 
-
+# Tasks 2 and 3: the environment is still stochastic, but the agent only learns from sampled experience
 def stochastic_transition(state, action, rng):
     """
-    Prof hint style:
     Environment is stochastic, but this is hidden from the agent in Tasks 2 and 3.
     """
     if action == "U":
@@ -363,6 +368,7 @@ def stochastic_transition(state, action, rng):
     r = rng.random()
     cum_prob = 0.0
 
+    # Sample one actual movement according to the hidden transition probabilities
     for actual_action, prob in transitions:
         cum_prob += prob
         if r <= cum_prob:
@@ -370,7 +376,7 @@ def stochastic_transition(state, action, rng):
 
     return state
 
-
+# This wraps the stochastic environment transition with reward and terminal handling
 def env_step(state, action, rng):
     """
     Sample one stochastic transition for Tasks 2 and 3.
@@ -380,6 +386,8 @@ def env_step(state, action, rng):
 
     next_state = stochastic_transition(state, action, rng)
     reward = 10.0 if next_state == GOAL else -1.0
+
+    # The goal is terminal, so once it is reached the episode ends
     done = (next_state == GOAL)
 
     return next_state, reward, done
@@ -396,7 +404,7 @@ def greedy_action_from_V(state, V):
     q_vals = {a: q_value(state, a, V) for a in ACTIONS}
     return max(q_vals, key=q_vals.get)
 
-
+# Epsilon-greedy: mostly exploit the current best action, but sometimes explore to avoid getting stuck with a bad policy
 def epsilon_greedy_action(state, Q, rng, epsilon=EPSILON):
     if rng.random() < epsilon:
         return rng.choice(ACTIONS)
@@ -449,7 +457,8 @@ def compare_policies(policy_a, policy_b):
     return diffs
 
 
-# ---------------- Part 2 Task 1 ----------------
+# Part 2 Task 1: Value Iteration and Policy Iteration
+# Value Iteration repeatedly applies the Bellman optimality update
 def value_iteration():
     states = get_states()
     V = {s: 0.0 for s in states}
@@ -482,7 +491,7 @@ def value_iteration():
 
     return V, policy, iterations
 
-
+# Policy Iteration alternates between policy evaluation and policy improvement
 def policy_iteration():
     states = get_states()
     policy = {s: ("G" if s == GOAL else "U") for s in states}
@@ -555,7 +564,8 @@ def run_part2_task1():
     return V_vi, policy_vi
 
 
-# ---------------- Part 2 Task 2 ----------------
+# Part 2 Task 2: Monte Carlo Control
+# First-visit Monte Carlo control learns from complete sampled episodes
 def monte_carlo_control(num_episodes=50000, seed=42):
     rng = random.Random(seed)
     states = get_states()
@@ -567,6 +577,8 @@ def monte_carlo_control(num_episodes=50000, seed=42):
     episode_lengths = []
 
     for _ in range(num_episodes):
+
+        # Generate one full episode starting from the start state
         episode = []
         state = START
         done = False
@@ -579,7 +591,7 @@ def monte_carlo_control(num_episodes=50000, seed=42):
 
         episode_lengths.append(len(episode))
 
-        # compute returns G_t for each time step
+        # Compute the discounted return for every time step in the episode
         returns = [0.0] * len(episode)
         G_return = 0.0
         for t in range(len(episode) - 1, -1, -1):
@@ -587,7 +599,7 @@ def monte_carlo_control(num_episodes=50000, seed=42):
             G_return = reward + GAMMA * G_return
             returns[t] = G_return
 
-        # true first-visit MC: update only first occurrence in forward order
+        # First-visit MC: update only the first time each state-action pair appears
         visited = set()
         for t, (state, action, _) in enumerate(episode):
             if (state, action) not in visited:
@@ -636,7 +648,8 @@ def run_part2_task2(optimal_policy):
     return V_mc, policy_mc
 
 
-# ---------------- Part 2 Task 3 ----------------
+# Part 2 Task 3: Q-learning
+# Q-learning updates after every step instead of waiting for the whole episode
 def q_learning(num_episodes=50000, alpha=ALPHA, epsilon=EPSILON, seed=42, max_steps=200):
     rng = random.Random(seed)
     states = get_states()
@@ -653,6 +666,7 @@ def q_learning(num_episodes=50000, alpha=ALPHA, epsilon=EPSILON, seed=42, max_st
             action = epsilon_greedy_action(state, Q, rng, epsilon)
             next_state, reward, done = env_step(state, action, rng)
 
+            # Q-learning bootstraps from the best next action estimate
             if done:
                 target = reward
             else:
@@ -750,6 +764,7 @@ def main():
     print("=" * 60)
 
     # ---------------- Part 2 ----------------
+    # Run Task 1 first to get the reference optimal policy, then compare the learned MC and Q-learning policies against it
     run_part2()
 
 
