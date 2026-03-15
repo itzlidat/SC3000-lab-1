@@ -2,6 +2,9 @@ import json
 import heapq
 import math
 import random
+import os
+import numpy as np
+import matplotlib.pyplot as plt
 
 
 
@@ -417,32 +420,40 @@ def epsilon_greedy_action(state, Q, rng, epsilon=EPSILON):
 
 def print_value_table(V, title):
     print(title)
-    for y in range(GRID_SIZE - 1, -1, -1):
-        row = []
-        for x in range(GRID_SIZE):
+    print("       y=0     y=1     y=2     y=3     y=4")
+
+    for x in range(GRID_SIZE - 1, -1, -1):
+        row = [f"x={x}"]
+
+        for y in range(GRID_SIZE):
             s = (x, y)
             if s in ROADBLOCKS:
-                row.append("#####".rjust(8))
+                row.append(" ##### ")
             elif s == GOAL:
-                row.append(" GOAL ".rjust(8))
+                row.append(" GOAL  ")
             else:
-                row.append(f"{V[s]:8.2f}")
+                row.append(f"{V[s]:7.2f}")
+
         print(" ".join(row))
     print()
 
 
 def print_policy_table(policy, title):
     print(title)
-    for y in range(GRID_SIZE - 1, -1, -1):
-        row = []
-        for x in range(GRID_SIZE):
+    print("      y=0   y=1   y=2   y=3   y=4")
+
+    for x in range(GRID_SIZE - 1, -1, -1):
+        row = [f"x={x}"]
+
+        for y in range(GRID_SIZE):
             s = (x, y)
             if s in ROADBLOCKS:
-                row.append("■".center(5))
+                row.append("  ■  ")
             elif s == GOAL:
-                row.append("G".center(5))
+                row.append("  G  ")
             else:
-                row.append(ARROWS[policy[s]].center(5))
+                row.append(f"  {ARROWS[policy[s]]}  ")
+
         print(" ".join(row))
     print()
 
@@ -456,7 +467,157 @@ def compare_policies(policy_a, policy_b):
             diffs.append(s)
     return diffs
 
+def make_plot_folder():
+    os.makedirs("plots", exist_ok=True)
 
+
+def plot_value_heatmap(V, title, filename):
+    """
+    Display convention:
+    rows = x (shown on left)
+    columns = y (shown on top)
+    """
+    make_plot_folder()
+
+    grid = np.full((GRID_SIZE, GRID_SIZE), np.nan)
+
+    for x in range(GRID_SIZE):
+        for y in range(GRID_SIZE):
+            s = (x, y)
+            row = GRID_SIZE - 1 - x   # x shown vertically
+            col = y                   # y shown horizontally
+
+            if s in ROADBLOCKS:
+                continue
+            elif s == GOAL:
+                grid[row, col] = 0.0
+            else:
+                grid[row, col] = V[s]
+
+    fig, ax = plt.subplots(figsize=(6, 6))
+    im = ax.imshow(grid)
+
+    ax.set_title(title)
+    ax.set_ylabel("x")
+    ax.set_xlabel("y")
+    ax.xaxis.tick_top()
+    ax.xaxis.set_label_position("top")
+
+    ax.set_xticks(range(GRID_SIZE))
+    ax.set_yticks(range(GRID_SIZE))
+    ax.set_xticklabels(range(GRID_SIZE))
+    ax.set_yticklabels(range(GRID_SIZE - 1, -1, -1))
+
+    ax.set_xticks(np.arange(-0.5, GRID_SIZE, 1), minor=True)
+    ax.set_yticks(np.arange(-0.5, GRID_SIZE, 1), minor=True)
+    ax.grid(which="minor")
+    ax.tick_params(which="minor", bottom=False, left=False)
+
+    for x in range(GRID_SIZE):
+        for y in range(GRID_SIZE):
+            s = (x, y)
+            row = GRID_SIZE - 1 - x
+            col = y
+
+            if s in ROADBLOCKS:
+                ax.text(col, row, "X", ha="center", va="center", fontsize=12)
+            elif s == GOAL:
+                ax.text(col, row, "G", ha="center", va="center", fontsize=12)
+            else:
+                ax.text(col, row, f"{V[s]:.2f}", ha="center", va="center", fontsize=10)
+
+    fig.colorbar(im, ax=ax, shrink=0.85)
+    plt.tight_layout()
+    plt.savefig(f"plots/{filename}", dpi=300, bbox_inches="tight")
+    plt.close()
+
+
+def plot_policy_grid(policy, title, filename):
+    """
+    Display convention:
+    rows = x (shown on left)
+    columns = y (shown on top)
+    """
+    make_plot_folder()
+
+    fig, ax = plt.subplots(figsize=(6, 6))
+    ax.set_title(title)
+    ax.set_ylabel("x")
+    ax.set_xlabel("y")
+    ax.xaxis.tick_top()
+    ax.xaxis.set_label_position("top")
+
+    ax.set_xlim(-0.5, GRID_SIZE - 0.5)
+    ax.set_ylim(-0.5, GRID_SIZE - 0.5)
+
+    ax.set_xticks(range(GRID_SIZE))
+    ax.set_yticks(range(GRID_SIZE))
+    ax.set_xticklabels(range(GRID_SIZE))
+    ax.set_yticklabels(range(GRID_SIZE - 1, -1, -1))
+
+    ax.set_xticks(np.arange(-0.5, GRID_SIZE, 1), minor=True)
+    ax.set_yticks(np.arange(-0.5, GRID_SIZE, 1), minor=True)
+    ax.grid(which="minor")
+    ax.tick_params(which="minor", bottom=False, left=False)
+
+    for x in range(GRID_SIZE):
+        for y in range(GRID_SIZE):
+            s = (x, y)
+            row = GRID_SIZE - 1 - x
+            col = y
+
+            if s in ROADBLOCKS:
+                ax.text(col, row, "X", ha="center", va="center", fontsize=15)
+            elif s == GOAL:
+                ax.text(col, row, "G", ha="center", va="center", fontsize=15)
+            else:
+                ax.text(col, row, ARROWS[policy[s]], ha="center", va="center", fontsize=16)
+
+    plt.tight_layout()
+    plt.savefig(f"plots/{filename}", dpi=300, bbox_inches="tight")
+    plt.close()
+
+
+def moving_average(values, window=500):
+    if len(values) < window:
+        return np.arange(1, len(values) + 1), np.array(values, dtype=float)
+
+    ma = np.convolve(values, np.ones(window) / window, mode="valid")
+    x = np.arange(window, len(values) + 1)
+    return x, ma
+
+
+def plot_learning_curve(lengths, title, filename, window=500):
+    make_plot_folder()
+
+    x, ma = moving_average(lengths, window=window)
+
+    plt.figure(figsize=(7, 4))
+    plt.plot(x, ma)
+    plt.title(title)
+    plt.xlabel("Episode")
+    plt.ylabel("Episode length")
+    plt.tight_layout()
+    plt.savefig(f"plots/{filename}", dpi=300, bbox_inches="tight")
+    plt.close()
+
+def plot_combined_learning_curves(mc_lengths, ql_lengths, title, filename, window=500):
+    make_plot_folder()
+
+    x_mc, y_mc = moving_average(mc_lengths, window=window)
+    x_ql, y_ql = moving_average(ql_lengths, window=window)
+
+    plt.figure(figsize=(7, 4))
+    plt.plot(x_mc, y_mc, label="Monte Carlo")
+    plt.plot(x_ql, y_ql, label="Q-learning")
+    plt.title(title)
+    plt.xlabel("Episode")
+    plt.ylabel("Episode length")
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(f"plots/{filename}", dpi=300, bbox_inches="tight")
+    plt.close()
+    
 # Part 2 Task 1: Value Iteration and Policy Iteration
 # Value Iteration repeatedly applies the Bellman optimality update
 def value_iteration():
@@ -541,6 +702,7 @@ def policy_iteration():
     return V, policy, outer_iterations
 
 
+
 def run_part2_task1():
     V_vi, policy_vi, vi_iters = value_iteration()
     V_pi, policy_pi, pi_iters = policy_iteration()
@@ -560,6 +722,12 @@ def run_part2_task1():
         print("Comparison: VI and PI produced the same policy.\n")
     else:
         print("Comparison: VI and PI differ at states:", diffs, "\n")
+
+    plot_value_heatmap(V_vi, "Task 1: Value Iteration Values", "task1_vi_values.png")
+    plot_policy_grid(policy_vi, "Task 1: Value Iteration Policy", "task1_vi_policy.png")
+
+    plot_value_heatmap(V_pi, "Task 1: Policy Iteration Values", "task1_pi_values.png")
+    plot_policy_grid(policy_pi, "Task 1: Policy Iteration Policy", "task1_pi_policy.png")
 
     return V_vi, policy_vi
 
@@ -645,7 +813,15 @@ def run_part2_task2(optimal_policy):
             print(f"{s}: MC={policy_mc[s]}, Optimal={optimal_policy[s]}")
         print()
 
-    return V_mc, policy_mc
+    plot_value_heatmap(V_mc, "Task 2: Monte Carlo Values", "task2_mc_values.png")
+    plot_policy_grid(policy_mc, "Task 2: Monte Carlo Policy", "task2_mc_policy.png")
+    plot_learning_curve(
+        episode_lengths,
+        "Task 2: Monte Carlo Episode Length (Moving Average)",
+        "task2_mc_learning_curve.png"
+    )
+
+    return V_mc, policy_mc, episode_lengths
 
 
 # Part 2 Task 3: Q-learning
@@ -730,21 +906,35 @@ def run_part2_task3(optimal_policy, mc_policy):
             print(f"{s}: Q-learning={policy_q[s]}, Optimal={optimal_policy[s]}")
         print()
 
-    return V_q, policy_q
+    plot_value_heatmap(V_q, "Task 3: Q-learning Values", "task3_ql_values.png")
+    plot_policy_grid(policy_q, "Task 3: Q-learning Policy", "task3_ql_policy.png")
+    plot_learning_curve(
+        episode_lengths,
+        "Task 3: Q-learning Episode Length (Moving Average)",
+        "task3_ql_learning_curve.png"
+    )
+
+    return V_q, policy_q, episode_lengths
 
 
 def run_part2():
     _, optimal_policy = run_part2_task1()
-    _, mc_policy = run_part2_task2(optimal_policy)
-    run_part2_task3(optimal_policy, mc_policy)
+    _, mc_policy, mc_episode_lengths = run_part2_task2(optimal_policy)
+    _, ql_policy, ql_episode_lengths = run_part2_task3(optimal_policy, mc_policy)
+
+    plot_combined_learning_curves(
+        mc_episode_lengths,
+        ql_episode_lengths,
+        "Monte Carlo vs Q-learning Learning Curve",
+        "combined_mc_vs_ql_learning_curve.png"
+    )
 
 
-# =========================================================
 # Main
-# =========================================================
+
 
 def main():
-    # ---------------- Part 1 ----------------
+    # Part 1 
     G, Dist, Cost, Coord = load_graph()
 
     start = 1
@@ -763,7 +953,7 @@ def main():
 
     print("=" * 60)
 
-    # ---------------- Part 2 ----------------
+    # Part 2  
     # Run Task 1 first to get the reference optimal policy, then compare the learned MC and Q-learning policies against it
     run_part2()
 
