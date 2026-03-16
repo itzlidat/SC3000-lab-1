@@ -268,35 +268,36 @@ ACTIONS = ["U", "R", "D", "L"]
 ARROWS = {"U": "↑", "R": "→", "D": "↓", "L": "←"}
 
 GRID_SIZE = 5
+
+# Keep the state format exactly as clarified by the TAs:
+# state = (row, column), with (0, 0) at the bottom-left corner.
 START = (0, 0)
 GOAL = (4, 4)
-
-# Prof clarified the roadblocks are given in (row, column) format.
-# In this code, states are stored as (x, y), so:
-# (2,1) -> (1,2), (2,3) -> (3,2)
-ROADBLOCKS = {(1, 2), (3, 2)}
+OBSTACLES = {(2, 1), (2, 3)}
 
 GAMMA = 0.9
 THETA = 1e-10
 EPSILON = 0.1
 ALPHA = 0.1
+MC_MAX_STEPS = 500
+QL_MAX_STEPS = 200
 
 
 def get_states():
     return [
-        (x, y)
-        for x in range(GRID_SIZE)
-        for y in range(GRID_SIZE)
-        if (x, y) not in ROADBLOCKS
+        (row, col)
+        for row in range(GRID_SIZE)
+        for col in range(GRID_SIZE)
+        if (row, col) not in OBSTACLES
     ]
 
 
 def in_bounds(state):
-    x, y = state
+    row, col = state
     return (
-        0 <= x < GRID_SIZE
-        and 0 <= y < GRID_SIZE
-        and state not in ROADBLOCKS
+        0 <= row < GRID_SIZE
+        and 0 <= col < GRID_SIZE
+        and state not in OBSTACLES
     )
 
 
@@ -304,16 +305,16 @@ def move(state, action):
     if state == GOAL:
         return GOAL
 
-    x, y = state
+    row, col = state
 
     if action == "U":
-        nxt = (x, y + 1)
+        nxt = (row + 1, col)
     elif action == "D":
-        nxt = (x, y - 1)
+        nxt = (row - 1, col)
     elif action == "L":
-        nxt = (x - 1, y)
+        nxt = (row, col - 1)
     else:  # "R"
-        nxt = (x + 1, y)
+        nxt = (row, col + 1)
 
     if not in_bounds(nxt):
         return state
@@ -403,13 +404,13 @@ def epsilon_greedy_action(state, Q, rng, epsilon=EPSILON):
 
 def print_value_table(V, title):
     print(title)
-    print("         x=0      x=1      x=2      x=3      x=4")
+    print("         c=0      c=1      c=2      c=3      c=4")
 
-    for y in range(GRID_SIZE - 1, -1, -1):
-        row = [f"y={y}"]
-        for x in range(GRID_SIZE):
-            s = (x, y)
-            if s in ROADBLOCKS:
+    for row_idx in range(GRID_SIZE - 1, -1, -1):
+        row = [f"r={row_idx}"]
+        for col_idx in range(GRID_SIZE):
+            s = (row_idx, col_idx)
+            if s in OBSTACLES:
                 row.append("  ##### ")
             elif s == GOAL:
                 row.append("  GOAL  ")
@@ -421,13 +422,13 @@ def print_value_table(V, title):
 
 def print_policy_table(policy, title):
     print(title)
-    print("        x=0   x=1   x=2   x=3   x=4")
+    print("        c=0   c=1   c=2   c=3   c=4")
 
-    for y in range(GRID_SIZE - 1, -1, -1):
-        row = [f"y={y}"]
-        for x in range(GRID_SIZE):
-            s = (x, y)
-            if s in ROADBLOCKS:
+    for row_idx in range(GRID_SIZE - 1, -1, -1):
+        row = [f"r={row_idx}"]
+        for col_idx in range(GRID_SIZE):
+            s = (row_idx, col_idx)
+            if s in OBSTACLES:
                 row.append("  X  ")
             elif s == GOAL:
                 row.append("  G  ")
@@ -456,22 +457,22 @@ def plot_value_heatmap(V, title, filename):
 
     grid = np.full((GRID_SIZE, GRID_SIZE), np.nan)
 
-    for x in range(GRID_SIZE):
-        for y in range(GRID_SIZE):
-            s = (x, y)
-            if s in ROADBLOCKS:
+    for row in range(GRID_SIZE):
+        for col in range(GRID_SIZE):
+            s = (row, col)
+            if s in OBSTACLES:
                 continue
             elif s == GOAL:
-                grid[y, x] = 0.0
+                grid[row, col] = 0.0
             else:
-                grid[y, x] = V[s]
+                grid[row, col] = V[s]
 
     fig, ax = plt.subplots(figsize=(6, 6))
     im = ax.imshow(grid, origin="lower")
 
     ax.set_title(title)
-    ax.set_xlabel("x")
-    ax.set_ylabel("y")
+    ax.set_xlabel("column")
+    ax.set_ylabel("row")
     ax.set_xticks(range(GRID_SIZE))
     ax.set_yticks(range(GRID_SIZE))
 
@@ -480,15 +481,15 @@ def plot_value_heatmap(V, title, filename):
     ax.grid(which="minor")
     ax.tick_params(which="minor", bottom=False, left=False)
 
-    for x in range(GRID_SIZE):
-        for y in range(GRID_SIZE):
-            s = (x, y)
-            if s in ROADBLOCKS:
-                ax.text(x, y, "X", ha="center", va="center", fontsize=12)
+    for row in range(GRID_SIZE):
+        for col in range(GRID_SIZE):
+            s = (row, col)
+            if s in OBSTACLES:
+                ax.text(col, row, "X", ha="center", va="center", fontsize=12)
             elif s == GOAL:
-                ax.text(x, y, "G", ha="center", va="center", fontsize=12)
+                ax.text(col, row, "G", ha="center", va="center", fontsize=12)
             else:
-                ax.text(x, y, f"{V[s]:.2f}", ha="center", va="center", fontsize=10)
+                ax.text(col, row, f"{V[s]:.2f}", ha="center", va="center", fontsize=10)
 
     fig.colorbar(im, ax=ax, shrink=0.85)
     plt.tight_layout()
@@ -501,8 +502,8 @@ def plot_policy_grid(policy, title, filename):
 
     fig, ax = plt.subplots(figsize=(6, 6))
     ax.set_title(title)
-    ax.set_xlabel("x")
-    ax.set_ylabel("y")
+    ax.set_xlabel("column")
+    ax.set_ylabel("row")
     ax.set_xlim(-0.5, GRID_SIZE - 0.5)
     ax.set_ylim(-0.5, GRID_SIZE - 0.5)
     ax.set_xticks(range(GRID_SIZE))
@@ -513,15 +514,15 @@ def plot_policy_grid(policy, title, filename):
     ax.grid(which="minor")
     ax.tick_params(which="minor", bottom=False, left=False)
 
-    for x in range(GRID_SIZE):
-        for y in range(GRID_SIZE):
-            s = (x, y)
-            if s in ROADBLOCKS:
-                ax.text(x, y, "X", ha="center", va="center", fontsize=15)
+    for row in range(GRID_SIZE):
+        for col in range(GRID_SIZE):
+            s = (row, col)
+            if s in OBSTACLES:
+                ax.text(col, row, "X", ha="center", va="center", fontsize=15)
             elif s == GOAL:
-                ax.text(x, y, "G", ha="center", va="center", fontsize=15)
+                ax.text(col, row, "G", ha="center", va="center", fontsize=15)
             else:
-                ax.text(x, y, ARROWS[policy[s]], ha="center", va="center", fontsize=16)
+                ax.text(col, row, ARROWS[policy[s]], ha="center", va="center", fontsize=16)
 
     plt.tight_layout()
     plt.savefig(f"plots/{filename}", dpi=300, bbox_inches="tight")
@@ -667,7 +668,7 @@ def run_part2_task1():
 
 
 # Part 2 Task 2
-def monte_carlo_control(num_episodes=50000, seed=42):
+def monte_carlo_control(num_episodes=50000, seed=42, max_steps=MC_MAX_STEPS):
     rng = random.Random(seed)
     states = get_states()
 
@@ -681,12 +682,14 @@ def monte_carlo_control(num_episodes=50000, seed=42):
         episode = []
         state = START
         done = False
+        steps = 0
 
-        while not done:
+        while not done and steps < max_steps:
             action = epsilon_greedy_action(state, Q, rng, EPSILON)
             next_state, reward, done = env_step(state, action, rng)
             episode.append((state, action, reward))
             state = next_state
+            steps += 1
 
         episode_lengths.append(len(episode))
 
@@ -728,6 +731,7 @@ def run_part2_task2(optimal_policy):
 
     print("Part 2 - Task 2")
     print("Monte Carlo training episodes: 50000")
+    print("Note: MC uses the same stochastic environment, with a safety cap on episode length.")
     print(f"Average episode length over last 1000 episodes: {sum(episode_lengths[-1000:]) / 1000:.2f}\n")
 
     print_value_table(V_mc, "Monte Carlo Learned State Values:")
@@ -749,7 +753,7 @@ def run_part2_task2(optimal_policy):
 
 
 # Part 2 Task 3
-def q_learning(num_episodes=50000, alpha=ALPHA, epsilon=EPSILON, seed=42, max_steps=200):
+def q_learning(num_episodes=50000, alpha=ALPHA, epsilon=EPSILON, seed=42, max_steps=QL_MAX_STEPS):
     rng = random.Random(seed)
     states = get_states()
 
@@ -803,6 +807,7 @@ def run_part2_task3(optimal_policy, mc_policy):
 
     print("Part 2 - Task 3")
     print("Q-learning training episodes: 50000")
+    print("Note: Q-learning interacts with the same hidden stochastic environment.")
     print(f"Average episode length over last 1000 episodes: {sum(episode_lengths[-1000:]) / 1000:.2f}\n")
 
     print_value_table(V_q, "Q-learning Learned State Values:")
